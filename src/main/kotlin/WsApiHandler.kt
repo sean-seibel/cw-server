@@ -7,8 +7,13 @@ import arrow.core.toOption
 import kotlinx.serialization.encodeToString
 
 class WsApiHandler(
-    private val room: Room
+    private val room: Room,
+    handleRoomEvents: (RoomEvent) -> Unit,
 ) {
+    init {
+        room.eventHandler = handleRoomEvents
+    }
+
     fun handle(msgReceived: String): WsResponse {
         // println("trying to parse : $msgReceived")
         val playerID: String
@@ -29,7 +34,7 @@ class WsApiHandler(
         } catch (e: Exception) { // bad json
             // println("failed to parse : $msgReceived")
             return WsResponse(
-                reflect = Json.encodeToString(BadJsonResponse(
+                reflect = Json.encodeToString(SimpleResponse(
                     Malformed.asString
                 )).toOption()
             )
@@ -38,15 +43,15 @@ class WsApiHandler(
             return if (joining && room.join(PlayerID(playerID))) {
                 // println("joining")
                 WsResponse(
-                    reflect = Json.encodeToString(JoinResponse(Joined.asString)).toOption(),
-                    propagate = Json.encodeToString(JoinResponse(OpponentJoined.asString)).toOption()
+                    reflect = Json.encodeToString(SimpleResponse(Joined.asString)).toOption(),
+                    propagate = Json.encodeToString(SimpleResponse(OpponentJoined.asString)).toOption()
                 )
             } else {
                 println("rejected $playerID")
                 println(room.Player1)
                 println(room.Player2)
                 WsResponse(
-                    reflect = Json.encodeToString(JoinResponse(Rejected.asString)).toOption()
+                    reflect = Json.encodeToString(SimpleResponse(Rejected.asString)).toOption()
                 )
             }
         }
@@ -95,7 +100,7 @@ class WsApiHandler(
                 return WsResponse(
                     reflect = None,
                     propagate = Json.encodeToString(
-                        ResignsResponse
+                        SimpleResponse(OpponentResigned.asString)
                     ).toOption()
                 )
             }
@@ -128,7 +133,7 @@ data class WebSocketIn(
 )
 
 @Serializable
-data class BadJsonResponse(
+data class SimpleResponse(
     val header: String
 )
 
@@ -150,16 +155,6 @@ data class InformationResponse(
 @Serializable
 data class MessageResponse(
     val message: String,
-    val header: String
-)
-
-@Serializable
-data class ResignsResponse(
-    val header: String
-)
-
-@Serializable
-data class JoinResponse(
     val header: String
 )
 

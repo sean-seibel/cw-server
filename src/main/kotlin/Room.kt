@@ -3,15 +3,37 @@ import arrow.core.Option
 import arrow.core.Some
 import arrow.core.getOrElse
 import kotlinx.serialization.Serializable
+import java.util.*
+import kotlin.concurrent.schedule
+import kotlin.random.Random
+import kotlin.time.ExperimentalTime
+import kotlin.time.TimeSource
 
-class Room(val w: Int, val h: Int, val connect: Int, val gravity: Boolean) {
+@OptIn(ExperimentalTime::class)
+class Room(
+    val w: Int,
+    val h: Int,
+    val connect: Int,
+    val gravity: Boolean,
+    val time: Long = 300, // in seconds
+    val increment: Long = 15, // in seconds
+    var eventHandler: (RoomEvent) -> Unit = {},
+    ) {
     companion object {
         enum class ActivePlayer(val asString: String) { ONE("ONE"), TWO("TWO"), NONE("NONE") }
     }
     val id = generateRoomID()
 
     var Player1: Option<PlayerID> = None // red player
+    var p1time = time * 1000 // in ms now
     var Player2: Option<PlayerID> = None // yellow player
+    var p2time = time * 1000 // in ms now
+
+    var sinceLastMove = TimeSource.Monotonic.markNow()
+    lateinit var activeTask: TimerTask
+
+    var gameStarted = false
+
     var activePlayer = ActivePlayer.ONE
 
     val socket = generateSocketID()
@@ -30,28 +52,73 @@ class Room(val w: Int, val h: Int, val connect: Int, val gravity: Boolean) {
         }
     }
 
+    private fun checkStart() {
+        gameStarted = Player1.isSome() && Player2.isSome()
+        if (gameStarted) {
+            eventHandler(RoomEvent.GameStarted)
+            startTimerForActivePlayer()
+        }
+    }
+
+    private fun stopTimeForActivePlayer() {
+        // cancel last scheduled event
+        activeTask.cancel()
+        // subtract elapsed time from active players remaining time
+        when (activePlayer) {
+            ActivePlayer.ONE -> {
+                p1time -= (sinceLastMove.elapsedNow().inWholeMilliseconds - increment * 1000)
+            }
+            else -> {
+                p2time -= (sinceLastMove.elapsedNow().inWholeMilliseconds - increment * 1000)
+            }
+        }
+    }
+
+    private fun startTimerForActivePlayer() {
+        // set time since last move
+        sinceLastMove = TimeSource.Monotonic.markNow()
+        // schedule Timeout event for this player
+        val delay = when (activePlayer) {
+            ActivePlayer.ONE -> p1time
+            else -> p2time
+        }
+        activeTask = Timer().schedule(delay) {
+            gameStarted = false
+            eventHandler(RoomEvent.TimeOut(activePlayer))
+        }
+    }
+
     fun join(playerID: PlayerID): Boolean {
         if (!eligibleToJoin(playerID)) return false
         if (Player1.isNone()) {
+            if (Player2.isNone() && Random.nextBoolean()) { // if both are empty, 50/50 which one gets the first player
+                Player2 = Some(playerID)
+                checkStart()
+                return true
+            }
             Player1 = Some(playerID)
+            checkStart()
             return true
         }
         if (Player2.isNone()) {
             Player2 = Some(playerID)
+            checkStart()
             return true
         }
         return false
     }
 
-    fun gameActive(): Boolean {
-        return Player1.isSome() && Player2.isSome()
-    }
-
     fun makeMove(column: Int, row: Option<Int>): MoveResult {
+        if (!gameStarted) return MoveResult.Invalid
         val res = gameBoard.makeMove(column, row)
         if (res == MoveResult.Valid) {
+            stopTimeForActivePlayer()
             activePlayer = if (gameBoard.active == GameBoard.RED) ActivePlayer.ONE else ActivePlayer.TWO
             madeMoves++
+            startTimerForActivePlayer()
+        }
+        if (res.isOver()) {
+            stopTimeForActivePlayer()
         }
         return res
     }
@@ -99,6 +166,10 @@ class Room(val w: Int, val h: Int, val connect: Int, val gravity: Boolean) {
             activePlayer.asString,
             madeMoves,
             gravity,
+            time,
+            increment,
+            p1time,
+            p2time
         )
     }
 }
@@ -108,8 +179,12 @@ data class BoardData(
     val w: Int,
     val h: Int,
     val connect: Int,
-    val board: Array<Array<Char>>,
+    val board: Array<Array<Byte>>,
     val activePlayer: String,
     val madeMoves: Int,
     val gravity: Boolean,
+    val time: Long,
+    val increment: Long,
+    val p1time: Long,
+    val p2time: Long,
 )

@@ -5,9 +5,9 @@ import java.lang.StringBuilder
 
 class GameBoard(val w: Int, val h: Int, val connect: Int, val gravity: Boolean) {
     companion object {
-        const val EMPTY = ' '
-        const val RED = 'R'
-        const val YELLOW = 'Y'
+        const val EMPTY : Byte = 0
+        const val RED : Byte = 1
+        const val YELLOW : Byte = 2
         val OFFSETS = arrayOf(arrayOf(-1, -1), arrayOf(-1, 0), arrayOf(0, -1), arrayOf(1, -1))
     }
 
@@ -39,7 +39,7 @@ class GameBoard(val w: Int, val h: Int, val connect: Int, val gravity: Boolean) 
         if (this.checkWin(row, column)) return Win
         for (checkRow in 0 until h) {
             for (checkCol in 0 until w) {
-                if (pieces[checkRow][checkCol] == EMPTY) {
+                if (pieces[checkCol][checkRow] == EMPTY) {
                     this.active = if (this.active == RED) YELLOW else RED
                     return Valid
                 }

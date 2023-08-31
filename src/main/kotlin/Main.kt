@@ -1,3 +1,4 @@
+import arrow.core.None
 import io.javalin.Javalin
 import io.javalin.community.ssl.SSLPlugin
 import io.javalin.http.HttpStatus.*
@@ -54,11 +55,11 @@ fun main() {
             data = Json.decodeFromString<CreateRoom>(ctx.body())
         } catch (e: Exception) {
             ctx.status(BAD_REQUEST)
+            println("create_room failed at decoding: \n${ctx.body()}")
             ctx.result("Malformed or incorrect JSON")
             return@post
         }
         try {
-            println("create_room failed at decoding: \n${ctx.body()}")
             sys.createRoom(
                 PlayerID(data.playerID),
                 data.w,
@@ -103,13 +104,29 @@ fun main() {
 fun createSocketRoom(sys: RoomSystem, room: Room, bigLock: ReentrantLock): Javalin {
     val socketRoom = makeServer(randomPorts = true)
     val path = "/socket/${room.socket.id}"
-    // println(path)
-
-    val handler = WsApiHandler(room)
 
     val joined: MutableSet<WsContext> = mutableSetOf()
 
     val littleLock = ReentrantLock() // incredibly mystical and powerful solution parte dois
+
+    val handler = WsApiHandler(room) {
+        Json.encodeToString(
+            when (it) {
+                is RoomEvent.TimeOut -> {
+                    SimpleResponse(
+                        when (it.player) {
+                            Room.Companion.ActivePlayer.ONE -> WsResponseHeader.P1TimeOut
+                            else -> WsResponseHeader.P2TimeOut
+                        }.asString
+                    )
+                }
+                is RoomEvent.GameStarted -> {
+                    SimpleResponse(WsResponseHeader.GameStarted.asString)
+                }
+            }
+        ).sendAll(joined)
+    }
+
     socketRoom.ws(path) { ws ->
         ws.onConnect { ctx ->
             littleLock.lock()
@@ -158,6 +175,12 @@ fun WsResponse.send(origin: WsContext, connected: Set<WsContext>) {
         for (ctx in connected) {
             if (ctx.sessionId != origin.sessionId) ctx.send(it)
         }
+    }
+}
+
+fun String.sendAll(connected: Set<WsContext>) {
+    for (ctx in connected) {
+        ctx.send(this)
     }
 }
 
