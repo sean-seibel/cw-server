@@ -1,4 +1,5 @@
 import arrow.core.None
+import arrow.core.toOption
 import io.javalin.Javalin
 import io.javalin.community.ssl.SSLPlugin
 import io.javalin.http.HttpStatus.*
@@ -36,15 +37,15 @@ fun main() {
         sys.getRoom(RoomID(ctx.pathParam("roomId"))).fold({
             ctx.status(FORBIDDEN)
         }) { room ->
-            val playerID = PlayerID(ctx.body())
-            if (room.hasPlayer(playerID) || true) {
-                val socketData = SocketData(room.port, room.socket.id)
-                ctx.result(Json.encodeToString(socketData))
-                ctx.status(OK)
-            } else {
-                ctx.result("PlayerID not found in room")
-                ctx.status(FORBIDDEN)
-            }
+//            val playerID = PlayerID(ctx.body())
+//            if (room.hasPlayer(playerID) || true) {
+            val socketData = SocketData(room.port, room.socket.id)
+            ctx.result(Json.encodeToString(socketData))
+            ctx.status(OK)
+//            } else {
+//                ctx.result("PlayerID not found in room")
+//                ctx.status(FORBIDDEN)
+//            }
         }
     }
 
@@ -105,11 +106,11 @@ fun createSocketRoom(sys: RoomSystem, room: Room, bigLock: ReentrantLock): Javal
     val socketRoom = makeServer(randomPorts = true)
     val path = "/socket/${room.socket.id}"
 
-    val joined: MutableSet<WsContext> = mutableSetOf()
+    val joined: MutableMap<WsContext, PlayerID> = mutableMapOf()
 
     val littleLock = ReentrantLock() // incredibly mystical and powerful solution parte dois
 
-    val handler = WsApiHandler(room) {
+    val handler = WsApiHandler(room, {
         Json.encodeToString(
             when (it) {
                 is RoomEvent.TimeOut -> {
@@ -124,13 +125,15 @@ fun createSocketRoom(sys: RoomSystem, room: Room, bigLock: ReentrantLock): Javal
                     SimpleResponse(WsResponseHeader.GameStarted.asString)
                 }
             }
-        ).sendAll(joined)
+        ).sendAll(joined.keys)
+    }) { ctx, pid ->
+        joined[ctx] = pid
     }
 
     socketRoom.ws(path) { ws ->
         ws.onConnect { ctx ->
             littleLock.lock()
-            joined.add(ctx)
+            joined[ctx] = PlayerID("")
             println("Adding ${ctx.sessionId} to call")
             ctx.enableAutomaticPings(10, TimeUnit.SECONDS) // ping every 10s // disable this ??
             littleLock.unlock()
@@ -139,6 +142,17 @@ fun createSocketRoom(sys: RoomSystem, room: Room, bigLock: ReentrantLock): Javal
             littleLock.lock()
             joined.remove(ctx)
             println("Dropping ${ctx.sessionId}")
+            println("Their pid is ${joined[ctx]}")
+            val pid = joined[ctx]
+            if (pid != null && room.hasPlayer(pid)) {
+                println("Announcing disconnect of ${ctx.sessionId}")
+                WsResponse(
+                    None,
+                    Json.encodeToString(
+                        SimpleResponse(WsResponseHeader.OpponentDisconnect.asString)
+                    ).toOption()
+                ).send(ctx, joined.keys)
+            }
             if (joined.isEmpty()) {
                 sys.deleteRoom(room.id) // once everyone leaves shut it down yo
                 socketRoom.close()
@@ -147,7 +161,7 @@ fun createSocketRoom(sys: RoomSystem, room: Room, bigLock: ReentrantLock): Javal
         }
         ws.onMessage { ctx ->
             littleLock.lock()
-            handler.handle(ctx.message()).send(ctx, joined)
+            handler.handle(ctx).send(ctx, joined.keys)
             littleLock.unlock()
         }
     }

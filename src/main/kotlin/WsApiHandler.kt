@@ -4,17 +4,19 @@ import WsResponseHeader.*
 import arrow.core.None
 import arrow.core.Option
 import arrow.core.toOption
+import io.javalin.websocket.WsMessageContext
 import kotlinx.serialization.encodeToString
 
 class WsApiHandler(
     private val room: Room,
     handleRoomEvents: (RoomEvent) -> Unit,
+    private val handlePlayerID: (WsMessageContext, PlayerID) -> Unit,
 ) {
     init {
         room.eventHandler = handleRoomEvents
     }
 
-    fun handle(msgReceived: String): WsResponse {
+    fun handle(msgReceived: WsMessageContext): WsResponse {
         // println("trying to parse : $msgReceived")
         val playerID: String
         val move: Int?
@@ -24,7 +26,7 @@ class WsApiHandler(
         val joining: Boolean?
         try {
             val (nplayerID, nmove, nmoveRow, nmessage, nresigns, njoining) =
-                Json.decodeFromString<WebSocketIn>(msgReceived)
+                Json.decodeFromString<WebSocketIn>(msgReceived.message())
             playerID = nplayerID
             move = nmove
             moveRow = nmoveRow.toOption()
@@ -41,6 +43,7 @@ class WsApiHandler(
         }
         if (joining != null) {
             return if (joining && room.join(PlayerID(playerID))) {
+                handlePlayerID(msgReceived, PlayerID(playerID))
                 // println("joining")
                 WsResponse(
                     reflect = Json.encodeToString(SimpleResponse(Joined.asString)).toOption(),
