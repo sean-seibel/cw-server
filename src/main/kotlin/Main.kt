@@ -106,7 +106,8 @@ fun createSocketRoom(sys: RoomSystem, room: Room, bigLock: ReentrantLock): Javal
     val socketRoom = makeServer(randomPorts = true)
     val path = "/socket/${room.socket.id}"
 
-    val joined: MutableMap<WsContext, PlayerID> = mutableMapOf()
+    val joined: MutableSet<WsContext> = mutableSetOf()
+    val joinedIDs: MutableMap<String, PlayerID> = mutableMapOf()
 
     val littleLock = ReentrantLock() // incredibly mystical and powerful solution parte dois
 
@@ -125,15 +126,19 @@ fun createSocketRoom(sys: RoomSystem, room: Room, bigLock: ReentrantLock): Javal
                     SimpleResponse(WsResponseHeader.GameStarted.asString)
                 }
             }
-        ).sendAll(joined.keys)
+        ).sendAll(joined)
     }) { ctx, pid ->
-        joined[ctx] = pid
+        joinedIDs[ctx.sessionId] = pid
+//        println("map currently:")
+//        for ((key, value) in joinedIDs) {
+//            println("\t$key:$value")
+//        }
     }
 
     socketRoom.ws(path) { ws ->
         ws.onConnect { ctx ->
             littleLock.lock()
-            joined[ctx] = PlayerID("")
+            joined.add(ctx)
             println("Adding ${ctx.sessionId} to call")
             ctx.enableAutomaticPings(10, TimeUnit.SECONDS) // ping every 10s // disable this ??
             littleLock.unlock()
@@ -141,9 +146,10 @@ fun createSocketRoom(sys: RoomSystem, room: Room, bigLock: ReentrantLock): Javal
         ws.onClose { ctx ->
             littleLock.lock()
             joined.remove(ctx)
+            val pid = joinedIDs[ctx.sessionId]
+            joinedIDs.remove(ctx.sessionId)
             println("Dropping ${ctx.sessionId}")
-            println("Their pid is ${joined[ctx]}")
-            val pid = joined[ctx]
+            println("Their pid is ${joinedIDs[ctx.sessionId]}")
             if (pid != null && room.hasPlayer(pid)) {
                 println("Announcing disconnect of ${ctx.sessionId}")
                 WsResponse(
@@ -151,7 +157,7 @@ fun createSocketRoom(sys: RoomSystem, room: Room, bigLock: ReentrantLock): Javal
                     Json.encodeToString(
                         SimpleResponse(WsResponseHeader.OpponentDisconnect.asString)
                     ).toOption()
-                ).send(ctx, joined.keys)
+                ).send(ctx, joined)
             }
             if (joined.isEmpty()) {
                 sys.deleteRoom(room.id) // once everyone leaves shut it down yo
@@ -161,7 +167,7 @@ fun createSocketRoom(sys: RoomSystem, room: Room, bigLock: ReentrantLock): Javal
         }
         ws.onMessage { ctx ->
             littleLock.lock()
-            handler.handle(ctx).send(ctx, joined.keys)
+            handler.handle(ctx).send(ctx, joined)
             littleLock.unlock()
         }
     }
