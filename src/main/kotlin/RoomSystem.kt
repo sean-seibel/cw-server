@@ -11,9 +11,15 @@ class RoomSystem {
     private val rooms: MutableMap<RoomID, Room> = mutableMapOf()
     // private val playersInRooms: HashSet<PlayerID> = hashSetOf() // protect against multiboxing later
 
-    fun createRoom(playerID: PlayerID, w: Int, h: Int, connect: Int, gravity: Boolean): Option<RoomID> {
+    fun createRoom(
+        playerID: PlayerID,
+        w: Int, h: Int, connect: Int,
+        gravity: Boolean,
+        minutes: Long,
+        increment: Long
+    ): Option<RoomID> {
         if (rooms.size >= MAX_ROOMS) return None
-        val newRoom = Room(w, h, connect, gravity)
+        val newRoom = Room(w, h, connect, gravity, minutes * 60, increment)
 //        newRoom.join(playerID)
         rooms[newRoom.id] = newRoom
         return Some(newRoom.id)

@@ -67,6 +67,8 @@ fun main() {
                 data.h,
                 data.connect,
                 data.gravity,
+                data.minutes,
+                data.increment,
             ).fold({
                 ctx.status(FORBIDDEN)
             }) { roomID ->
@@ -149,7 +151,7 @@ fun createSocketRoom(sys: RoomSystem, room: Room, bigLock: ReentrantLock): Javal
             val pid = joinedIDs[ctx.sessionId]
             joinedIDs.remove(ctx.sessionId)
             println("Dropping ${ctx.sessionId}")
-            println("Their pid is ${joinedIDs[ctx.sessionId]}")
+            println("Their pid was $pid")
             if (pid != null && room.hasPlayer(pid)) {
                 println("Announcing disconnect of ${ctx.sessionId}")
                 WsResponse(
@@ -211,4 +213,6 @@ data class CreateRoom(
     val h: Int,
     val connect: Int,
     val gravity: Boolean,
+    val minutes: Long,
+    val increment: Long,
 )
