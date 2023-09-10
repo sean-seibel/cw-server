@@ -7,5 +7,7 @@ data class RoomData(
     val h: Int,
     val connect: Int,
     val numPlayers: Int,
-    val gravity: Boolean
+    val gravity: Boolean,
+    val time: Long,
+    val increment: Long,
 )

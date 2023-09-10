@@ -2,6 +2,7 @@ plugins {
     application
     kotlin("jvm") version "1.8.0"
     kotlin("plugin.serialization") version "1.4.21"
+    id("com.github.johnrengelman.shadow") version "7.1.2"
 }
 
 group = "org.example"
@@ -30,4 +31,14 @@ kotlin {
 
 application {
     mainClass.set("MainKt")
+}
+
+tasks.jar {
+    manifest {
+        attributes["Main-Class"] = "MainKt"
+    }
+    configurations["compileClasspath"].forEach { file: File ->
+        from(zipTree(file.absoluteFile))
+    }
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }

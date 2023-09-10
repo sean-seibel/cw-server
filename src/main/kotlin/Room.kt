@@ -17,6 +17,7 @@ class Room(
     val gravity: Boolean,
     val time: Long = 300, // in seconds
     val increment: Long = 15, // in seconds
+    val socket: SocketID = generateSocketID(),
     var eventHandler: (RoomEvent) -> Unit = {},
     ) {
     companion object {
@@ -36,7 +37,6 @@ class Room(
 
     var activePlayer = ActivePlayer.ONE
 
-    val socket = generateSocketID()
     var port = -1
 
     val gameBoard = GameBoard(w, h, connect, gravity)
@@ -149,6 +149,8 @@ class Room(
         return Player1 == Some(playerID) || Player2 == Some(playerID)
     }
 
+    fun isEmpty() = Player1.isNone() && Player2.isNone()
+
     fun toData(): RoomData {
         return RoomData(
             id = id.id,
@@ -156,7 +158,9 @@ class Room(
             h = h,
             connect = connect,
             numPlayers = Player1.fold({0}) { 1 } + Player2.fold({0}) { 1 },
-            gravity = gravity
+            gravity = gravity,
+            time = time,
+            increment = increment,
         )
     }
 
@@ -174,6 +178,8 @@ class Room(
     }
 }
 
+// this is actually more like room data
+// and roomData is more like board data
 @Serializable
 data class BoardData(
     val w: Int,

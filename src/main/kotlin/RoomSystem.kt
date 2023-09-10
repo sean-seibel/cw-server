@@ -9,7 +9,8 @@ class RoomSystem {
         const val MAX_ROOMS = 50
     }
     private val rooms: MutableMap<RoomID, Room> = mutableMapOf()
-    // private val playersInRooms: HashSet<PlayerID> = hashSetOf() // protect against multiboxing later
+    private val occupiedSockets: MutableMap<SocketID, Room> = mutableMapOf()
+    private val sockets: MutableSet<SocketID> = mutableSetOf()
 
     fun createRoom(
         playerID: PlayerID,
@@ -17,12 +18,15 @@ class RoomSystem {
         gravity: Boolean,
         minutes: Long,
         increment: Long
-    ): Option<RoomID> {
+    ): Option<Room> {
         if (rooms.size >= MAX_ROOMS) return None
-        val newRoom = Room(w, h, connect, gravity, minutes * 60, increment)
-//        newRoom.join(playerID)
+        if (sockets.isEmpty()) return None
+        val chosenSocket = sockets.first()
+        val newRoom = Room(w, h, connect, gravity, minutes * 60, increment, chosenSocket)
+        sockets.remove(chosenSocket)
+        occupiedSockets[chosenSocket] = newRoom
         rooms[newRoom.id] = newRoom
-        return Some(newRoom.id)
+        return Some(newRoom)
     }
 
     fun roomData(): List<RoomData> {
@@ -50,8 +54,18 @@ class RoomSystem {
         }
     }
 
+    /**
+     * The only way to delete a room.
+     *
+     * Also frees the socket.
+     */
     fun deleteRoom(roomID: RoomID): Boolean {
         return if (rooms.containsKey(roomID)) {
+            val sock = rooms[roomID]!!.socket
+            if (occupiedSockets.containsKey(sock)) {
+                occupiedSockets.remove(sock)
+                sockets.add(sock)
+            }
             rooms.remove(roomID)
             true
         } else false
@@ -64,6 +78,9 @@ class RoomSystem {
     }
 
     fun getRoom(roomID: RoomID) = rooms.getOrNone(roomID)
+
+    fun declareSocket(socketID: SocketID) = sockets.add(socketID)
+    fun getSocketOccupant(socketID: SocketID) = occupiedSockets.getOrNone(socketID)
 }
 
 @Serializable
