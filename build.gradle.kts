@@ -1,3 +1,11 @@
+abstract class StageTask : DefaultTask() {
+    @TaskAction
+    fun action() {
+    }
+}
+
+tasks.register<StageTask>("stageTask")
+
 plugins {
     application
     kotlin("jvm") version "1.8.0"
