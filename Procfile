@@ -1,1 +1,1 @@
-web: GRADLE_OPTS="-Xmx64m -Dorg.gradle.jvmargs='-Xmx256m -XX:MaxPermSize=64m'" ./gradlew run
+web: ./gradlew run
