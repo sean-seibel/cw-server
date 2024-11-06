@@ -31,6 +31,7 @@ fun main() {
     app.get("/rooms") { ctx ->
         ctx.result(Json.encodeToString(sys.roomData()))
         ctx.status(OK)
+        println("memory (during run)=${ Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory() } bytes")
     }
 
     app.get("/player_id") { ctx ->
@@ -120,7 +121,7 @@ fun main() {
         }
     }
 
-    repeat(50) {
+    repeat(5) {
         app.createSocketRoom(sys, mediumLock)
     }
 
