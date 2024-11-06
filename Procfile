@@ -1,1 +1,1 @@
-web: ./gradlew run
+web: ./gradlew build && java -jar ./build/libs/cw-server-1.0-SNAPSHOT.jar

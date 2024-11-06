@@ -125,6 +125,7 @@ fun main() {
         app.createSocketRoom(sys, mediumLock)
     }
 
+    println("memory (during run)=${ Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory() } bytes")
     app.start(80) // default http
 }
 
