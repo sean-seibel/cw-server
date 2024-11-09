@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 
 class RoomSystem {
     companion object {
-        const val MAX_ROOMS = 5
+        const val MAX_ROOMS = 50
     }
     private val rooms: MutableMap<RoomID, Room> = mutableMapOf()
     private val occupiedSockets: MutableMap<SocketID, Room> = mutableMapOf()

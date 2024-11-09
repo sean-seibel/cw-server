@@ -121,7 +121,7 @@ fun main() {
         }
     }
 
-    repeat(5) {
+    repeat(RoomSystem.MAX_ROOMS) {
         app.createSocketRoom(sys, mediumLock)
     }
 
